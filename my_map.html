@@ -56,9 +56,13 @@
                 }
             );
 
-            
-
-        
+            map_26de89e5eb472bf6eb7d7af370e277d3.on('click', 
+					function(e){
+						var coord = e.latlng.toString().split(',');
+						var lat = coord[0].split('(');
+						var lng = coord[1].split(')');
+						console.log(lat[1] + "," + lng[0]);
+					});
     
             var tile_layer_cff5d7bf09f262f7fdcce31420008180 = L.tileLayer(
                 "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
