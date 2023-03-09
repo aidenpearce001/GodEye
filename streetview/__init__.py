@@ -45,7 +45,10 @@ def _panoids_url(lat, lon):
     Builds the URL of the script on Google's servers that returns the closest
     panoramas (ids) to a give GPS coordinate.
     """
-    url = "https://maps.googleapis.com/maps/api/js/GeoPhotoService.SingleImageSearch?pb=!1m5!1sapiv3!5sUS!11m2!1m1!1b0!2m4!1m2!3d{0:}!4d{1:}!2d50!3m10!2m2!1sen!2sGB!9m1!1e2!11m4!1m3!1e2!2b1!3e2!4m10!1e1!1e2!1e3!1e4!1e8!1e6!5m1!1e2!6m1!1e2&callback=_xdc_._v2mub5"
+    url = ("https://maps.googleapis.com/maps/api/js/GeoPhotoService.SingleImageSearch?"
+           "pb=!1m5!1sapiv3!5sUS!11m2!1m1!1b0!2m4!1m2!3d{0:}!4d{1:}!2d50!3m10!2m2!1sen!2sGB!9m1!1e2!11m4!1m3!1e2!2b1!3e2!4m10!1e1!1e2!1e3!1e4!1e8!1e6!5m1!1e2!6m1!1e2"
+           "&callback=_xdc_._v2mub5")
+    
     return url.format(lat, lon)
 
 
@@ -77,11 +80,16 @@ def panoids(lat, lon, closest=False, disp=False, proxies=None, resp=None):
     # 2012
     # 2013
     # 2014
-    pans = re.findall('\[[0-9]+,"(.+?)"\].+?\[\[null,null,(-?[0-9]+.[0-9]+),(-?[0-9]+.[0-9]+)', resp.text)
+    pans = re.findall('\[2,"(.+?)"\].+?'
+                      '\[\[null,null,(-?[0-9]+.[0-9]+),(-?[0-9]+.[0-9]+)\],'
+                      '\[-?[0-9]+.[0-9]+\],\[(-?[0-9]+.[0-9]+),(-?[0-9]+.[0-9]+),(-?[0-9]+.[0-9]+)', resp.text)
     pans = [{
         "panoid": p[0],
         "lat": float(p[1]),
-        "lon": float(p[2])} for p in pans]  # Convert to floats
+        "lon": float(p[2]),
+        "heading": float(p[3]),
+        "tilt": float(p[4]),
+        "roll": float(p[5])} for p in pans]  # Convert to floats
 
     # Remove duplicate panoramas
     pans = [p for i, p in enumerate(pans) if p not in pans[:i]]
@@ -128,13 +136,13 @@ def panoids(lat, lon, closest=False, disp=False, proxies=None, resp=None):
             return datetime(year=x['year'], month=x['month'], day=1)
         else:
             return datetime(year=3000, month=1, day=1)
+        
     pans.sort(key=func)
 
     if closest:
         return [pans[i] for i in range(len(dates))]
     else:
         return pans
-
 
 def panoids_from_response(text, closest=False, disp=False, proxies=None):
     """
@@ -210,20 +218,24 @@ def panoids_from_response(text, closest=False, disp=False, proxies=None):
     else:
         return pans
 
-def tiles_info(panoid):
+def tiles_info(panoid, zoom=5, alternate=False):
     """
     Generate a list of a panorama's tiles and their position.
 
     The format is (x, y, filename, fileurl)
     """
 
-    image_url = "http://cbk0.google.com/cbk?output=tile&panoid={0:}&zoom=5&x={1:}&y={2:}"
+    image_url = 'https://streetviewpixels-pa.googleapis.com/v1/tile?cb_client=maps_sv.tactile&panoid={}&zoom={}&x={}&y={}'
 
     # The tiles positions
     coord = list(itertools.product(range(imgx), range(13)))
 
-    tiles = [(x, y, "%s_%dx%d.jpg" % (panoid, x, y), image_url.format(panoid, x, y)) for x, y in coord]
-
+    if alternate:
+        image_url = 'https://lh3.ggpht.com/p/{}=x{}-y{}-z{}'
+        tiles = [(x, y, "%s_%dx%d.jpg" % (panoid, x, y), image_url.format(panoid, x, y, zoom)) for x, y in coord]
+    else:
+        image_url = 'https://streetviewpixels-pa.googleapis.com/v1/tile?cb_client=maps_sv.tactile&panoid={}&zoom={}&x={}&y={}'
+        tiles = [(x, y, "%s_%dx%d.jpg" % (panoid, x, y), image_url.format(panoid, zoom, x, y)) for x, y in coord]
     return tiles
 
 
