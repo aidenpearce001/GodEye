@@ -25,7 +25,7 @@ function:
 
 """
 
-import re
+import re, math
 from datetime import datetime
 import requests
 import time
@@ -34,22 +34,76 @@ import itertools
 from PIL import Image
 from io import BytesIO
 import os
+from random import choice
 
 from pprint import pprint
 
 imgx = 26 # Modified image width. Default is 26 which sometimes results in crop.
 
+class urls:
+    chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+    def _build_tile_url(pano_id, zoom=3, x=0, y=0):
+        """
+        Build Google Street View Tile URL
+        """
+        url = f"https://streetviewpixels-pa.googleapis.com/v1/tile?cb_client=maps_sv.tactile&panoid={pano_id}&x={x}&y={y}&zoom={zoom}&nbt=1&fover=2"
+        return url
 
-def _panoids_url(lat, lon):
-    """
-    Builds the URL of the script on Google's servers that returns the closest
-    panoramas (ids) to a give GPS coordinate.
-    """
-    url = ("https://maps.googleapis.com/maps/api/js/GeoPhotoService.SingleImageSearch?"
-           "pb=!1m5!1sapiv3!5sUS!11m2!1m1!1b0!2m4!1m2!3d{0:}!4d{1:}!2d50!3m10!2m2!1sen!2sGB!9m1!1e2!11m4!1m3!1e2!2b1!3e2!4m10!1e1!1e2!1e3!1e4!1e8!1e6!5m1!1e2!6m1!1e2"
-           "&callback=_xdc_._v2mub5")
+    def _build_metadata_url(pano_id=None, lat=None, lng=None, mode="GetMetadata", radius=500):
+        """
+        Build GeoPhotoService call URL from
+        Pano ID that contains panorama key data 
+        such as image size, location, coordinates,
+        date and previous panoramas.
+        """
+        xdc = "_xdc_._" + "".join([y for x in range(6) if (y := choice(urls.chars)) is not None])
+
+        print(xdc)
+        
+        if mode == "GetMetadata":
+            url = f"https://maps.googleapis.com/maps/api/js/GeoPhotoService.GetMetadata?pb=!1m5!1sapiv3!5sUS!11m2!1m1!1b0!2m2!1sen!2sUS!3m3!1m2!1e2!2s{pano_id}!4m6!1e1!1e2!1e3!1e4!1e8!1e6&callback={xdc}"
+        elif mode == "SingleImageSearch":
+            url = f"https://maps.googleapis.com/maps/api/js/GeoPhotoService.SingleImageSearch?pb=!1m5!1sapiv3!5sUS!11m2!1m1!1b0!2m4!1m2!3d{lat}!4d{lng}!2d{radius}!3m20!1m1!3b1!2m2!1sen!2sUS!9m1!1e2!11m12!1m3!1e2!2b1!3e2!1m3!1e3!2b1!3e2!1m3!1e10!2b1!3e2!4m6!1e1!1e2!1e3!1e4!1e8!1e6&callback={xdc}"
+        elif mode == "SatelliteZoom":
+            x, y = geo._coordinate_to_tile(lat, lng)
+            url = f"https://www.google.com/maps/photometa/ac/v1?pb=!1m1!1smaps_sv.tactile!6m3!1i{x}!2i{y}!3i17!8b1"
+
+        return url
+
+    def _build_short_url(pano_id, heading=0, pitch=0, zoom=90) -> str:
+        """
+        Build API call URL that shorts an encoded URL.
+        Useful for shortening panorama IDs.
+        """
+        encoded_input = f"https://www.google.com/maps/@?api=1&map_action=pano&pano={pano_id}&heading={heading}&pitch={pitch}&fov={zoom}"
+        url = f"https://www.google.com/maps/rpc/shorturl?pb=!1s{urllib.parse.quote(encoded_input)}"
+        return url
+
+class geo:
+    def _project(lat, lng, TILE_SIZE=256):
+        siny = math.sin((lat * math.pi) / 180)
+        siny = min(max(siny, -0.9999), 0.9999)
+        x = TILE_SIZE * (0.5 + lng / 360),
+        y = TILE_SIZE * (0.5 - math.log((1 + siny) / (1 - siny)) / (4 * math.pi)),
+        return x[0], y[0]
+    def _coordinate_to_tile(lat, lng, tile_size=256, zoom=17):
+        x, y = geo._project(lat, lng)
+        zoom = 1 << zoom
+        tile_x = math.floor((x * zoom) / tile_size)
+        tile_y = math.floor((y * zoom) / tile_size)
+        return tile_x, tile_y
+
+# def _panoids_url(lat, lon):
+
+#     """
+#     Builds the URL of the script on Google's servers that returns the closest
+#     panoramas (ids) to a give GPS coordinate.
+#     """
+#     url = ("https://maps.googleapis.com/maps/api/js/GeoPhotoService.SingleImageSearch?"
+#            "pb=!1m5!1sapiv3!5sUS!11m2!1m1!1b0!2m4!1m2!3d{0:}!4d{1:}!2d50!3m10!2m2!1sen!2sGB!9m1!1e2!11m4!1m3!1e2!2b1!3e2!4m10!1e1!1e2!1e3!1e4!1e8!1e6!5m1!1e2!6m1!1e2"
+#            "&callback=_xdc_._v2mub5")
     
-    return url.format(lat, lon)
+#     return url.format(lat, lon)
 
 
 def _panoids_data(lat, lon, proxies=None):
